@@ -39,6 +39,7 @@ import nl.giejay.android.tv.immich.shared.prefs.LOAD_BACKGROUND_IMAGE
 import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
 import nl.giejay.android.tv.immich.shared.util.Debouncer
 import nl.giejay.android.tv.immich.shared.viewmodel.KeyEventsViewModel
+import nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -239,11 +240,21 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
 
     private fun setupAdapter() {
         val presenter = VerticalGridPresenter(ZOOM_FACTOR)
-        presenter.numberOfColumns = COLUMNS
+
+        // --- CAMBIO: LEER PREFERENCIA ---
+        // Leemos el número de columnas de la configuración (Default 4)
+        val cols = try {
+        PreferenceManager.get(GRID_COLUMN_COUNT)
+        } catch (e: Exception) {
+            4
+        }
+        presenter.numberOfColumns = cols
+        // --------------------------------
+
         gridPresenter = presenter
         val cardPresenter = CardPresenterSelector(requireContext())
         adapter = ArrayObjectAdapter(cardPresenter)
-    }
+        }
 
     private fun setupBackgroundManager() {
         mBackgroundManager = BackgroundManager.getInstance(activity)

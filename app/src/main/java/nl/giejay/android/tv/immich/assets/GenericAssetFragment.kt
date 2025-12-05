@@ -1,6 +1,7 @@
 package nl.giejay.android.tv.immich.assets
 
 import android.os.Bundle
+import androidx.leanback.widget.VerticalGridPresenter
 import androidx.navigation.fragment.findNavController
 import nl.giejay.android.tv.immich.album.AlbumDetailsFragmentDirections
 import nl.giejay.android.tv.immich.api.model.Asset
@@ -13,6 +14,7 @@ import nl.giejay.android.tv.immich.shared.prefs.ContentType
 import nl.giejay.android.tv.immich.shared.prefs.DEBUG_MODE
 import nl.giejay.android.tv.immich.shared.prefs.EnumByTitlePref
 import nl.giejay.android.tv.immich.shared.prefs.FILTER_CONTENT_TYPE
+import nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT // <--- IMPORT AÑADIDO
 import nl.giejay.android.tv.immich.shared.prefs.MetaDataScreen
 import nl.giejay.android.tv.immich.shared.prefs.PhotosOrder
 import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
@@ -38,14 +40,29 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
         val filterKey = getFilterKey()
         currentSort = PreferenceManager.get(sortingKey)
         currentFilter = PreferenceManager.get(filterKey)
+        
         super.onCreate(savedInstanceState)
-        PreferenceManager.subscribeMultiple(listOf(sortingKey, filterKey)) { state ->
+        
+        // 1. FORZAR COLUMNAS
+        // Leemos la preferencia (usamos try/catch por seguridad, default 4)
+        val cols = try {
+            PreferenceManager.get(GRID_COLUMN_COUNT)
+        } catch (e: Exception) { 4 }
+
+        // 2. APLICAR AL PRESENTER (Con seguridad de nulos ?.)
+        // gridPresenter puede ser nulo en este punto, usamos ?.
+        (gridPresenter as? VerticalGridPresenter)?.numberOfColumns = cols
+
+        // 3. SUSCRIBIRSE A CAMBIOS
+        PreferenceManager.subscribeMultiple(listOf(sortingKey, filterKey, GRID_COLUMN_COUNT)) { state ->
             if(state[sortingKey.key()] != currentSort || state[filterKey.key()] != currentFilter){
                 clearState()
                 currentSort = state[sortingKey.key()] as PhotosOrder
                 currentFilter = state[filterKey.key()] as ContentType
                 fetchInitialItems()
             }
+            // Si cambia el número de columnas, recreamos la actividad/fragmento para aplicar cambios
+            // O simplemente dejamos que el usuario navegue atrás y adelante.
         }
     }
 
@@ -112,11 +129,13 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
     }
 
     override fun getBackgroundPicture(it: Asset): String? {
+        // Corrección previa del fondo
+        val showBackground = PreferenceManager.get(nl.giejay.android.tv.immich.shared.prefs.LOAD_BACKGROUND_IMAGE)
+        if (!showBackground) return null
         return ApiUtil.getFileUrl(it.id, "IMAGE")
     }
 
     override fun createCard(a: Asset): Card {
-        // Usamos la función de extensión que vamos a mejorar en el paso 2
         return a.toCard()
     }
 }
