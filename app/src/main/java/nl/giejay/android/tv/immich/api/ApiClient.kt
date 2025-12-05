@@ -27,6 +27,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import nl.giejay.android.tv.immich.api.model.BucketResponse
+import nl.giejay.android.tv.immich.api.model.UpdateAssetRequest
 
 data class ApiClientConfig(
     val hostName: String,
@@ -55,6 +56,22 @@ class ApiClient(private val config: ApiClientConfig) {
         .build()
 
     private val service: ApiService = retrofit.create(ApiService::class.java)
+
+    // --- FUNCIONES DE ASSETS (FAVORITOS Y DETALLE) ---
+    
+    suspend fun getAsset(id: String): Either<String, Asset> {
+        return executeAPICall(200) { service.getAsset(id) }
+    }
+
+    suspend fun toggleFavorite(assetId: String, isFavorite: Boolean): Either<String, Asset> {
+        return executeAPICall(200) {
+            service.updateAsset(
+                id = assetId,
+                body = UpdateAssetRequest(isFavorite)
+            )
+        }
+    }
+    // ------------------------------------------------
 
     suspend fun listAlbums(): Either<String, List<Album>> {
         return executeAPICall(200) { service.listAlbums() }.flatMap { albums ->
@@ -112,7 +129,6 @@ class ApiClient(private val config: ApiClientConfig) {
         val searchRequest = SearchRequest(page,
             pageCount,
             order,
-            // null for all content
             if (contentType == ContentType.ALL) null else contentType.toString(),
             personIds,
             endDate?.format(dateTimeFormatter),
@@ -138,7 +154,6 @@ class ApiClient(private val config: ApiClientConfig) {
     }
 
    suspend fun listBuckets(albumId: String, order: PhotosOrder): Either<String, List<Bucket>> {
-        // CORRECCIÓN: Si albumId está vacío, enviamos null para evitar el error 400
         val safeAlbumId = if (albumId.isBlank()) null else albumId
 
         return executeAPICall(200) {
@@ -149,11 +164,9 @@ class ApiClient(private val config: ApiClientConfig) {
         }
     }
 
-
    suspend fun getAssetsForBucket(albumId: String, bucket: String, order: PhotosOrder): Either<String, List<Asset>> {
         val safeAlbumId = if (albumId.isBlank()) null else albumId
 
-        // AÑADIDO <BucketResponse> PARA FORZAR EL TIPO
         return executeAPICall<BucketResponse>(200) {
             service.getBucket(
                 albumId = safeAlbumId,
@@ -200,4 +213,3 @@ class ApiClient(private val config: ApiClientConfig) {
         }.map { it.filter(excludeByTag()) }
     }
 }
-

@@ -6,6 +6,7 @@ data class Card(
     override val id: String,
     override val thumbnailUrl: String?,
     override val backgroundUrl: String?,
-    val isVideo: Boolean = false, // <--- NUEVO CAMPO
+    val isVideo: Boolean = false,
+    var isFavorite: Boolean = false, // <--- ESTE ES EL CAMPO QUE FALTABA
     override var selected: Boolean = false
 ) : ICard

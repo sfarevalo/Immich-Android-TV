@@ -240,21 +240,29 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
 
     private fun setupAdapter() {
         val presenter = VerticalGridPresenter(ZOOM_FACTOR)
-
-        // --- CAMBIO: LEER PREFERENCIA ---
-        // Leemos el número de columnas de la configuración (Default 4)
+        
         val cols = try {
-        PreferenceManager.get(GRID_COLUMN_COUNT)
-        } catch (e: Exception) {
-            4
-        }
+            PreferenceManager.get(nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT)
+        } catch (e: Exception) { 4 }
         presenter.numberOfColumns = cols
-        // --------------------------------
-
+        
         gridPresenter = presenter
-        val cardPresenter = CardPresenterSelector(requireContext())
-        adapter = ArrayObjectAdapter(cardPresenter)
+        
+        // INSTANCIAMOS EL PRESENTER
+        val cardPresenter = nl.giejay.android.tv.immich.card.CardPresenter(requireContext())
+        
+        // CONFIGURAMOS SOLO EL LONG CLICK (El short click lo maneja onItemViewClickedListener)
+        cardPresenter.onLongClick = { card ->
+            if (card is Card) {
+                toggleFavorite(card)
+            }
         }
+
+        // IMPORTANTE: NO asignar onShortClick aquí, porque CardPresenter no lo tiene
+        // y Leanback ya maneja el clic normal.
+
+        adapter = ArrayObjectAdapter(cardPresenter)
+    }
 
     private fun setupBackgroundManager() {
         mBackgroundManager = BackgroundManager.getInstance(activity)
@@ -349,6 +357,35 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
                 .show()
         }
         Timber.e(message)
+    }
+
+    // FUNCIÓN AUXILIAR PARA FOTOS FAVORITS - EN LA CLASE (puede ser al final):
+    private fun toggleFavorite(card: Card) {
+        ioScope.launch {
+            // 1. Calculamos el estado opuesto (si era fav, ahora no, y viceversa)
+            val newStatus = !card.isFavorite
+            
+            // 2. Llamamos al servidor de forma segura
+            val result = apiClient.toggleFavorite(card.id, newStatus)
+            
+            result.fold(
+                { error -> showErrorMessage("Error updating favorite: $error") },
+                { _ -> 
+                    // 3. Éxito: Actualizamos la UI inmediatamente
+                    withContext(Dispatchers.Main) {
+                        card.isFavorite = newStatus
+                        // Avisamos al adaptador para que repinte la estrella
+                        val index = adapter.indexOf(card)
+                        if (index != -1) {
+                            adapter.notifyArrayItemRangeChanged(index, 1)
+                            Toast.makeText(requireContext(), 
+                                if (newStatus) "❤️ Añadido a Favoritos" else "💔 Quitado de Favoritos", 
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        }
     }
 
     companion object {

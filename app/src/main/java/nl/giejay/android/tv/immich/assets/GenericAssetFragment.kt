@@ -1,6 +1,8 @@
 package nl.giejay.android.tv.immich.assets
 
 import android.os.Bundle
+import androidx.fragment.app.setFragmentResultListener
+import androidx.leanback.widget.ArrayObjectAdapter
 import androidx.leanback.widget.VerticalGridPresenter
 import androidx.navigation.fragment.findNavController
 import nl.giejay.android.tv.immich.album.AlbumDetailsFragmentDirections
@@ -14,7 +16,7 @@ import nl.giejay.android.tv.immich.shared.prefs.ContentType
 import nl.giejay.android.tv.immich.shared.prefs.DEBUG_MODE
 import nl.giejay.android.tv.immich.shared.prefs.EnumByTitlePref
 import nl.giejay.android.tv.immich.shared.prefs.FILTER_CONTENT_TYPE
-import nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT // <--- IMPORT AÑADIDO
+import nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT
 import nl.giejay.android.tv.immich.shared.prefs.MetaDataScreen
 import nl.giejay.android.tv.immich.shared.prefs.PhotosOrder
 import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
@@ -30,6 +32,7 @@ import nl.giejay.android.tv.immich.shared.util.toCard
 import nl.giejay.android.tv.immich.shared.util.toSliderItems
 import nl.giejay.mediaslider.util.LoadMore
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
+import timber.log.Timber
 
 abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
     protected lateinit var currentFilter: ContentType
@@ -43,17 +46,12 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
         
         super.onCreate(savedInstanceState)
         
-        // 1. FORZAR COLUMNAS
-        // Leemos la preferencia (usamos try/catch por seguridad, default 4)
         val cols = try {
             PreferenceManager.get(GRID_COLUMN_COUNT)
         } catch (e: Exception) { 4 }
-
-        // 2. APLICAR AL PRESENTER (Con seguridad de nulos ?.)
-        // gridPresenter puede ser nulo en este punto, usamos ?.
+        
         (gridPresenter as? VerticalGridPresenter)?.numberOfColumns = cols
-
-        // 3. SUSCRIBIRSE A CAMBIOS
+        
         PreferenceManager.subscribeMultiple(listOf(sortingKey, filterKey, GRID_COLUMN_COUNT)) { state ->
             if(state[sortingKey.key()] != currentSort || state[filterKey.key()] != currentFilter){
                 clearState()
@@ -61,8 +59,49 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
                 currentFilter = state[filterKey.key()] as ContentType
                 fetchInitialItems()
             }
-            // Si cambia el número de columnas, recreamos la actividad/fragmento para aplicar cambios
-            // O simplemente dejamos que el usuario navegue atrás y adelante.
+        }
+
+        // 4. FIX COMPLETO: ACTUALIZAR VISTA Y MEMORIA (CORREGIDO Y COMPILABLE)
+        setFragmentResultListener("asset_favorite_changed") { _, bundle ->
+            val assetId = bundle.getString("assetId")
+            val isFavorite = bundle.getBoolean("isFavorite")
+            
+            if (assetId != null) {
+                // A) ACTUALIZAR LA MEMORIA
+                // Usamos una variable local para evitar errores de concurrencia de Kotlin (Smart cast error)
+                val localAssets = assets 
+                val assetIndex = localAssets.indexOfFirst { it.id == assetId }
+                
+                if (assetIndex != -1) {
+                    val updatedAsset = localAssets[assetIndex].copy(isFavorite = isFavorite)
+                    
+                    // Ahora comprobamos la variable local, que es segura
+                    if (localAssets is MutableList) {
+                        localAssets[assetIndex] = updatedAsset
+                    }
+                }
+
+                // B) ACTUALIZAR LA VISTA
+                if (adapter != null && adapter.size() > 0) {
+                    val count = adapter.size()
+                    for (i in 0 until count) {
+                        val item = adapter.get(i)
+                        if (item is Card && item.id == assetId) {
+                            item.isFavorite = isFavorite
+                            (adapter as? ArrayObjectAdapter)?.replace(i, item)
+                            Timber.d("GRID: Favorito actualizado para $assetId")
+                            break 
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (adapter != null && adapter.size() > 0) {
+            (adapter as? ArrayObjectAdapter)?.notifyArrayItemRangeChanged(0, adapter.size())
         }
     }
 
@@ -129,7 +168,6 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
     }
 
     override fun getBackgroundPicture(it: Asset): String? {
-        // Corrección previa del fondo
         val showBackground = PreferenceManager.get(nl.giejay.android.tv.immich.shared.prefs.LOAD_BACKGROUND_IMAGE)
         if (!showBackground) return null
         return ApiUtil.getFileUrl(it.id, "IMAGE")

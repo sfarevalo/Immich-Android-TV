@@ -84,7 +84,9 @@ fun Asset.toSliderItem(): SliderItem {
             MetaDataType.PEOPLE to this.people?.map { it.name }?.filter { it?.isNotBlank() == true }?.joinToString(", "),
             MetaDataType.FILEPATH to this.originalPath,
             MetaDataType.CAMERA to (listOf(this.exifInfo?.make, this.exifInfo?.model)).filterNotNull().joinToString(" ")),
-        ApiUtil.getThumbnailUrl(this.id, "preview"))
+        ApiUtil.getThumbnailUrl(this.id, "preview"),
+        this.isFavorite // <--- PASAMOS EL VALOR
+    )
 }
 
 private fun formatDate(date: Date): String {
@@ -116,7 +118,7 @@ fun List<Asset>.toCards(): List<Card> {
     }
 }
 
-// CORREGIDA: Ahora detecta correctamente el VIDEO y lo guarda en la Card
+// CORREGIDA: Ahora detecta VIDEO y FAVORITOS
 fun Asset.toCard(): Card {
     return Card(
         title = this.originalFileName ?: "",
@@ -124,6 +126,10 @@ fun Asset.toCard(): Card {
         id = this.id,
         thumbnailUrl = ApiUtil.getThumbnailUrl(this.id, "thumbnail"),
         backgroundUrl = ApiUtil.getThumbnailUrl(this.id, "preview"),
-        isVideo = this.type == "VIDEO" // <--- ESTO ES CRÍTICO
+        isVideo = this.type == "VIDEO",
+        
+        // --- ¡¡ESTA LÍNEA FALTABA!! ---
+        isFavorite = this.isFavorite
+        // ------------------------------
     )
 }
