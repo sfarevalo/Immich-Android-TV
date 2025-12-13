@@ -276,13 +276,13 @@ data object ALL_ASSETS_SORTING : EnumByTitlePref<PhotosOrder>(PhotosOrder.NEWEST
 }
 
 // other
-data object DEBUG_MODE : BooleanPref(false, "Enable debug mode", "Enable this if you are experiencing issues.")
+data object DEBUG_MODE : BooleanPref(true, "Enable debug mode", "Enable this if you are experiencing issues.")
 data object LOAD_BACKGROUND_IMAGE : BooleanPref(true, "Load selected item as background", "Load the currently selected image/album as the background")
 data object HIDDEN_HOME_ITEMS : StringSetPref(emptySet(), "", "")
 data object USER_ID : NotUserEditableStringPref("User ID", "Your user id, needed for debugging")
 
 // seasonal/random/recents
-data object SIMILAR_ASSETS_YEARS_BACK : IntListPref(10,
+data object SIMILAR_ASSETS_YEARS_BACK : IntListPref(100,
     "Seasonal photos years back",
     "How many years to go back when selecting seasonal photos",
     R.array.similar_assets_years_back,

@@ -30,6 +30,7 @@ import nl.giejay.android.tv.immich.api.model.BucketResponse
 import nl.giejay.android.tv.immich.api.model.UpdateAssetRequest
 import timber.log.Timber
 import java.util.Calendar
+import java.util.Date
 
 data class ApiClientConfig(
     val hostName: String,
@@ -126,14 +127,23 @@ class ApiClient(private val config: ApiClientConfig) {
         return Either.Right(map.flatMap { it.getOrElse { emptyList() } }.shuffled())
     }
 
-    suspend fun onThisDayAssets(page: Int, pageCount: Int, contentType: ContentType): Either<String, List<Asset>> {
+    private fun getDateFromAsset(asset: Asset): Date? {
+        return asset.exifInfo?.dateTimeOriginal ?: asset.fileModifiedAt
+    }
+
+    suspend fun onThisDayAssets(
+        page: Int,
+        pageCount: Int,
+        contentType: ContentType,
+        yearsBack: Int? = null
+    ): Either<String, List<Asset>> {
         val now = LocalDateTime.now()
         val today = now.dayOfMonth
         val currentMonth = now.monthValue
     
         Timber.d("OnThisDay: Buscando fotos del día $today del mes $currentMonth")
     
-        val map: List<Either<String, List<Asset>>> = (0 until PreferenceManager.get(SIMILAR_ASSETS_YEARS_BACK)).toList().map { yearOffset ->
+        val map: List<Either<String, List<Asset>>> = (0 until (yearsBack ?: PreferenceManager.get(SIMILAR_ASSETS_YEARS_BACK))).toList().map { yearOffset ->
             val fromDate = now.withHour(0).withMinute(0).withSecond(0).minusYears(yearOffset.toLong())
             val endDate = now.withHour(23).withMinute(59).withSecond(59).minusYears(yearOffset.toLong())
         
@@ -157,7 +167,7 @@ class ApiClient(private val config: ApiClientConfig) {
     
         // Filtrar para asegurar que solo tenemos fotos del día y mes actual
         val filteredAssets = allAssets.filter { asset ->
-            asset.exifInfo?.dateTimeOriginal?.let { date ->
+            getDateFromAsset(asset)?.let { date ->
                 val cal = Calendar.getInstance()
                 cal.time = date
                 val assetDay = cal.get(Calendar.DAY_OF_MONTH)
@@ -177,25 +187,31 @@ class ApiClient(private val config: ApiClientConfig) {
     }
 
     suspend fun listAssets(page: Int,
-                           pageCount: Int,
-                           random: Boolean = false,
-                           order: String = "desc",
-                           personIds: List<UUID> = emptyList(),
-                           fromDate: LocalDateTime? = null,
-                           endDate: LocalDateTime? = null,
-                           contentType: ContentType): Either<String, List<Asset>> {
-        val searchRequest = SearchRequest(page,
-            pageCount,
-            order,
-            if (contentType == ContentType.ALL) null else contentType.toString(),
-            personIds,
-            endDate?.format(dateTimeFormatter),
-            fromDate?.format(dateTimeFormatter))
+                       pageCount: Int,
+                       random: Boolean = false,
+                       order: String = "desc",
+                       personIds: List<UUID> = emptyList(),
+                       fromDate: LocalDateTime? = null,
+                       endDate: LocalDateTime? = null,
+                       contentType: ContentType,
+                       isFavorite: Boolean? = null): Either<String, List<Asset>> {  // ← AÑADIR PARÁMETRO
+    val searchRequest = SearchRequest(page,
+        pageCount,
+        order,
+        if (contentType == ContentType.ALL) null else contentType.toString(),
+        personIds,
+        endDate?.format(dateTimeFormatter),
+        fromDate?.format(dateTimeFormatter),
+        true,              // ← withExif (mantener existente)
+        isFavorite)        // ← AÑADIR ESTE PARÁMETRO
         return (if (random) {
             executeAPICall(200) { service.randomAssets(searchRequest) }
         } else {
             executeAPICall(200) { service.listAssets(searchRequest) }.map { res -> res.assets.items }
         }).map { it.filter(excludeByTag()) }.map {
+            it.forEach { asset ->
+                Timber.d("listAssets: Asset ${asset.originalFileName} - Date: ${getDateFromAsset(asset)}")
+            }
             val excludedAlbums = PreferenceManager.get(EXCLUDE_ASSETS_IN_ALBUM)
             if (excludedAlbums.isNotEmpty()) {
                 val excludedAssets =
@@ -270,4 +286,20 @@ class ApiClient(private val config: ApiClientConfig) {
             service.getAssetsForPath(folder)
         }.map { it.filter(excludeByTag()) }
     }
+
+    suspend fun getOldestAsset(): Either<String, Asset> {
+        return listAssets(1, 1, order = "asc", contentType = ContentType.ALL).map { it.first() }
+    }
+
+suspend fun listFavoriteAssets(page: Int, pageCount: Int, contentType: ContentType): Either<String, List<Asset>> {
+    return listAssets(
+        page = page, 
+        pageCount = pageCount, 
+        random = false, 
+        order = "desc", 
+        contentType = contentType,
+        isFavorite = true  // ← USAR FILTRO DEL SERVIDOR
+    )
+    // Ya no necesita .map { it.filter { asset -> asset.isFavorite } }
+}
 }

@@ -40,6 +40,7 @@ import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
 import nl.giejay.android.tv.immich.shared.util.Debouncer
 import nl.giejay.android.tv.immich.shared.viewmodel.KeyEventsViewModel
 import nl.giejay.android.tv.immich.shared.prefs.GRID_COLUMN_COUNT
+import nl.giejay.android.tv.immich.shared.cache.FavoriteCache
 import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
@@ -376,7 +377,7 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
                         card.isFavorite = newStatus
 
                         // AÑADIDO: Guardar en cache global
-                        nl.giejay.android.tv.immich.assets.FavoriteCache.overrides[card.id] = newStatus
+                        FavoriteCache.overrides[card.id] = newStatus
                         Timber.d("VerticalCardGrid: Guardado en FavoriteCache: ${card.id} -> $newStatus")
                     
 

@@ -1,0 +1,31 @@
+Project: Immich-Android-TV
+Objective: Implement an "On this day" feature that displays photos from the current day across different years, grouped by year.
+
+Approach:
+1.  **Understand data fetching in Immich server (external project):** Initially, I explored the Immich server's API to find an existing endpoint for "On this day" functionality. Although a `MemoryLaneDto` was found, it wasn't actively used, so a direct endpoint was not available.
+2.  **Identify client-side data fetching:** I located the `ApiClient.kt` in the Android TV project, which handles communication with the Immich server. I found the `similarAssets` function which already fetches assets within a date range across years.
+3.  **Refine data fetching for "On this day":** I created a new function `onThisDayAssets` in `ApiClient.kt` that is a modified version of `similarAssets`. This new function ensures that only assets from the exact current day (day and month) are fetched, iterating through previous years.
+4.  **UI Implementation - Initial attempt (caused crash):** My first attempt involved changing `OnThisDayFragment` (which previously extended `GenericAssetFragment`) to extend `BrowseSupportFragment` directly. This caused a crash because `BrowseSupportFragment` expects its page fragments to implement `MainFragmentAdapterProvider`.
+5.  **UI Implementation - Corrected approach (using a placeholder and a browse fragment):**
+    *   **Renamed `OnThisDayFragment` to `OnThisDayPlaceholderFragment`**: This fragment now serves as a simple placeholder in the main `HomeFragment` menu. It's a basic `Fragment` that, when clicked, triggers navigation to a dedicated "On this day" screen.
+    *   **Created `OnThisDayBrowseFragment`**: This is a new `BrowseSupportFragment` that now contains the logic to:
+        *   Initialize `PreferenceManager` to get API configuration.
+        *   Call the `ApiClient.onThisDayAssets` function to fetch the relevant photos.
+        *   Group the fetched assets by year.
+        *   Display these assets in `ListRow`s, with each `ListRow` representing a year and having a `HeaderItem` showing the year.
+        *   Added robust error handling with `try-catch` blocks and `Timber` logging.
+6.  **Navigation Setup:**
+    *   Updated `HomeFragment` to use `OnThisDayPlaceholderFragment` in its `HEADERS` list.
+    *   Modified `nav_graph.xml` to include `OnThisDayBrowseFragment` as a destination and added an action (`action_homeFragment_to_onThisDayBrowseFragment`) from `homeFragment` to navigate to it.
+    *   Implemented the navigation logic within `OnThisDayPlaceholderFragment` to use `findNavController().navigate(HomeFragmentDirections.actionHomeFragmentToOnThisDayBrowseFragment())`.
+
+Files Involved:
+- `app/src/main/java/nl/giejay/android/tv/immich/api/ApiClient.kt`: Modified to add `onThisDayAssets` function.
+- `app/src/main/java/nl/giejay/android/tv/immich/home/HomeFragment.kt`: Modified to use `OnThisDayPlaceholderFragment` in the `HEADERS` list.
+- `app/src/main/java/nl/giejay/android/tv/immich/onthisday/OnThisDayPlaceholderFragment.kt`: Renamed from `OnThisDayFragment`, now acts as a simple navigation fragment.
+- `app/src/main/java/nl/giejay/android/tv/immich/onthisday/OnThisDayBrowseFragment.kt`: New fragment, extends `BrowseSupportFragment`, contains the main logic for fetching and displaying yearly grouped "On this day" photos.
+- `app/src/main/res/navigation/nav_graph.xml`: Updated to include `OnThisDayBrowseFragment` as a navigation destination and an action from `homeFragment` to it.
+- `app/src/main/java/nl/giejay/android/tv/immich/api/ApiClientFactory.kt`: (Implicitly used by `ApiClient`)
+- `app/src/main/java/nl/giejay/android/tv/immich/shared/prefs/PreferenceManager.kt`: (Implicitly used to retrieve API config and preferences)
+- `app/src/main/java/nl/giejay/android/tv/immich/card/CardPresenter.kt`: (Used by `OnThisDayBrowseFragment` to display assets)
+- `app/src/main/java/nl/giejay/android/tv/immich/shared/util/AssetUtil.kt`: (Used by `OnThisDayBrowseFragment` for `toCard()` extension function)

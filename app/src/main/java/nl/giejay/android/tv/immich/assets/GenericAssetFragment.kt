@@ -16,6 +16,7 @@ import nl.giejay.android.tv.immich.shared.util.toCard
 import nl.giejay.android.tv.immich.shared.util.toSliderItems
 import nl.giejay.mediaslider.util.LoadMore
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
+import nl.giejay.android.tv.immich.shared.cache.FavoriteCache
 import timber.log.Timber
 
 abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
@@ -76,7 +77,7 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
     /**
      * Actualiza un Card en el adaptador visual
      */
-    private fun updateCardInAdapter(assetId: String, isFavorite: Boolean) {
+    protected fun updateCardInAdapter(assetId: String, isFavorite: Boolean) {
         if (adapter == null || adapter.size() == 0) {
             Timber.d("GenericAsset: Adaptador no disponible para actualizar")
             return
@@ -99,7 +100,7 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
     /**
      * Actualiza un Asset en la memoria (lista assets)
      */
-    private fun updateAssetInMemory(assetId: String, isFavorite: Boolean) {
+    protected fun updateAssetInMemory(assetId: String, isFavorite: Boolean) {
         val index = assets.indexOfFirst { it.id == assetId }
         if (index != -1 && assets is MutableList) {
             val updatedAsset = assets[index].copy(isFavorite = isFavorite)

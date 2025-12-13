@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import nl.giejay.android.tv.immich.api.ApiClient
 import nl.giejay.android.tv.immich.api.ApiClientConfig
-import nl.giejay.android.tv.immich.assets.FavoriteCache
 import nl.giejay.android.tv.immich.shared.prefs.API_KEY
 import nl.giejay.android.tv.immich.shared.prefs.DEBUG_MODE
 import nl.giejay.android.tv.immich.shared.prefs.DISABLE_SSL_VERIFICATION
@@ -23,6 +22,7 @@ import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
 import nl.giejay.mediaslider.view.MediaSliderFragment
 import nl.giejay.mediaslider.view.MediaSliderView
+import nl.giejay.android.tv.immich.shared.cache.FavoriteCache
 import timber.log.Timber
 
 class ImmichMediaSlider : MediaSliderFragment() {

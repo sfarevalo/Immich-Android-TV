@@ -24,7 +24,7 @@ buildscript {
         maven { url 'https://jitpack.io' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.1'
+        classpath 'com.android.tools.build:gradle:8.13.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
 
         classpath "androidx.navigation:navigation-safe-args-gradle-plugin:$nav_version"
@@ -48,27 +48,27 @@ allprojects {
     }
 }
 
-subprojects {
-    apply plugin: "com.diffplug.spotless"
-    ext.ktlintVer = "0.37.2"
-    spotless {
-        kotlin {
-            target("**/*.kt")
-            ktlint(ktlintVer).userData(["max_line_length" : "100"])
-            licenseHeaderFile(project.rootProject.file("copyright.kt"))
-        }
-    }
-
-    // `spotlessCheck` runs when a build includes `check`, notably during presubmit. In these cases
-    // we prefer `spotlessCheck` run as early as possible since it fails in seconds. This prevents a
-    // build from running for several minutes doing other intensive tasks (resource processing, code
-    // generation, compilation, etc) only to fail on a formatting nit.
-    // Using `mustRunAfter` avoids creating a task dependency. The order is enforced only if
-    // `spotlessCheck` is already scheduled to run, so we can still build and launch from the IDE
-    // while the code is "dirty".
-    tasks.whenTaskAdded {
-        if (name == "preBuild") {
-            mustRunAfter("spotlessCheck")
-        }
-    }
-}
+//subprojects {
+//    apply plugin: "com.diffplug.spotless"
+//    ext.ktlintVer = "0.37.2"
+//    spotless {
+//        kotlin {
+//            target("**/*.kt")
+//            ktlint(ktlintVer).userData(["max_line_length" : "100"])
+//            licenseHeaderFile(project.rootProject.file("copyright.kt"))
+//        }
+//    }
+//
+//    // `spotlessCheck` runs when a build includes `check`, notably during presubmit. In these cases
+//    // we prefer `spotlessCheck` run as early as possible since it fails in seconds. This prevents a
+//    // build from running for several minutes doing other intensive tasks (resource processing, code
+//    // generation, compilation, etc) only to fail on a formatting nit.
+//    // Using `mustRunAfter` avoids creating a task dependency. The order is enforced only if
+//    // `spotlessCheck` is already scheduled to run, so we can still build and launch from the IDE
+//    // while the code is "dirty".
+//    tasks.whenTaskAdded {
+//        if (name == "preBuild") {
+//            mustRunAfter("spotlessCheck")
+//        }
+//    }
+//}

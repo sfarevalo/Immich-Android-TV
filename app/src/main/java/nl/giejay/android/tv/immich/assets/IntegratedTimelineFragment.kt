@@ -38,7 +38,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import nl.giejay.android.tv.immich.card.Card
-import nl.giejay.android.tv.immich.assets.FavoriteCache
+import nl.giejay.android.tv.immich.shared.cache.FavoriteCache
 
 class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmentAdapterProvider {
 

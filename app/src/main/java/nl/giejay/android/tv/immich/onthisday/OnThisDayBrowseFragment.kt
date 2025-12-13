@@ -38,6 +38,8 @@ import nl.giejay.android.tv.immich.shared.util.toSliderItems
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
 import timber.log.Timber
 import java.util.Calendar
+import java.util.Date
+import nl.giejay.android.tv.immich.api.model.Asset
 
 class OnThisDayBrowseFragment : RowsSupportFragment(), BrowseSupportFragment.MainFragmentAdapterProvider {
 
@@ -78,57 +80,91 @@ class OnThisDayBrowseFragment : RowsSupportFragment(), BrowseSupportFragment.Mai
         )
     }
 
+    private fun getDateFromAsset(asset: Asset): Date? {
+        return asset.exifInfo?.dateTimeOriginal ?: asset.fileModifiedAt
+    }
+
     private fun loadOnThisDayAssets() {
         ioScope.launch {
             try {
-                val result = apiClient.onThisDayAssets(
-                    1,
-                    1000,
-                    PreferenceManager.get(FILTER_CONTENT_TYPE)
-                )
-                
-                result.fold(
+                val oldestAssetResult = apiClient.getOldestAsset()
+                oldestAssetResult.fold(
                     { error ->
-                        Timber.e("Error loading 'On this day' assets: $error")
+                        Timber.e("Error loading oldest asset: $error")
+                        // If there's an error getting the oldest asset, fall back to a default number of years
+                        loadAssetsWithYearsBack(PreferenceManager.get(nl.giejay.android.tv.immich.shared.prefs.SIMILAR_ASSETS_YEARS_BACK))
                     },
-                    { assets ->
-                        Timber.d("Loaded ${assets.size} assets for 'On this day'")
-                        
-                        val groupedAssets = assets.groupBy {
+                    { oldestAsset ->
+                        val oldestAssetDate = getDateFromAsset(oldestAsset)
+                        val oldestYear = if (oldestAssetDate != null) {
                             val cal = Calendar.getInstance()
-                            it.exifInfo?.dateTimeOriginal?.let { date ->
-                                cal.time = date
-                                cal.get(Calendar.YEAR)
-                            }
+                            cal.time = oldestAssetDate
+                            cal.get(Calendar.YEAR)
+                        } else {
+                            // If oldest asset has no date, fall back to a default number of years
+                            Calendar.getInstance().get(Calendar.YEAR) - PreferenceManager.get(nl.giejay.android.tv.immich.shared.prefs.SIMILAR_ASSETS_YEARS_BACK)
                         }
-                        
-                        requireActivity().runOnUiThread {
-                            rowsAdapter.clear()
-                            val cardPresenter = CardPresenter(requireContext())
-                            
-                            groupedAssets.keys
-                                .filterNotNull()
-                                .sortedByDescending { it }
-                                .forEach { year ->
-                                    val yearAssets = groupedAssets[year]!!
-                                    val header = HeaderItem(year.toLong(), year.toString())
-                                    val listRowAdapter = ArrayObjectAdapter(cardPresenter)
-                                    
-                                    yearAssets.forEach { asset ->
-                                        listRowAdapter.add(asset.toCard())
-                                    }
-                                    
-                                    rowsAdapter.add(ListRow(header, listRowAdapter))
-                                }
-                            
-                            Timber.d("Grouped into ${rowsAdapter.size()} years")
-                        }
+                        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                        val yearsBack = currentYear - oldestYear
+                        loadAssetsWithYearsBack(yearsBack)
                     }
                 )
             } catch (e: Exception) {
                 Timber.e(e, "Exception in OnThisDayBrowseFragment")
             }
         }
+    }
+
+    private suspend fun loadAssetsWithYearsBack(yearsBack: Int) {
+        val now = Calendar.getInstance()
+        val currentYear = now.get(Calendar.YEAR)
+
+        val result = apiClient.onThisDayAssets(
+            1,
+            1000,
+            PreferenceManager.get(FILTER_CONTENT_TYPE),
+            yearsBack
+        )
+
+        result.fold(
+            { error ->
+                Timber.e("Error loading 'On this day' assets: $error")
+            },
+            { assets ->
+                Timber.d("Loaded ${assets.size} assets for 'On this day'")
+
+                val groupedAssets = assets.groupBy {
+                    val cal = Calendar.getInstance()
+                    getDateFromAsset(it)?.let { date ->
+                        cal.time = date
+                        cal.get(Calendar.YEAR)
+                    }
+                }
+
+                requireActivity().runOnUiThread {
+                    rowsAdapter.clear()
+                    val cardPresenter = CardPresenter(requireContext())
+
+                    (0..yearsBack).forEach { yearOffset ->
+                        val year = currentYear - yearOffset
+                        val yearAssets = groupedAssets[year]
+
+                        if (yearAssets != null && yearAssets.isNotEmpty()) {
+                            val header = HeaderItem(year.toLong(), year.toString())
+                            val listRowAdapter = ArrayObjectAdapter(cardPresenter)
+
+                            yearAssets.forEach { asset ->
+                                listRowAdapter.add(asset.toCard())
+                            }
+
+                            rowsAdapter.add(ListRow(header, listRowAdapter))
+                        }
+                    }
+
+                    Timber.d("Grouped into ${rowsAdapter.size()} years")
+                }
+            }
+        )
     }
 
     private fun onItemClicked(card: Card) {

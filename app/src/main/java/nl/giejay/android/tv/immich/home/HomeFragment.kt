@@ -24,6 +24,7 @@ import nl.giejay.android.tv.immich.assets.RecentAssetsFragment
 import nl.giejay.android.tv.immich.assets.SimilarTimeAssetsFragment
 import nl.giejay.android.tv.immich.assets.TimelineFragment
 import nl.giejay.android.tv.immich.onthisday.OnThisDayBrowseFragment
+import nl.giejay.android.tv.immich.favorite.FavoritesBrowseFragment
 import nl.giejay.android.tv.immich.people.PeopleFragment
 import nl.giejay.android.tv.immich.settings.SettingsFragment
 import nl.giejay.android.tv.immich.shared.fragment.GridFragment
@@ -102,7 +103,8 @@ class HomeFragment : BrowseSupportFragment() {
     }
 
     private fun createRows(): List<PageRow> {
-        return HEADERS.mapIndexed { index, header -> PageRow(HeaderItem(index.toLong(), header.name)) }
+        return HEADERS.mapIndexed { index, header -> PageRow(HeaderItem(index.toLong(), header.name))
+        }
     }
 
     private class PageRowFragmentFactory : FragmentFactory<Fragment>() {
@@ -124,6 +126,7 @@ class HomeFragment : BrowseSupportFragment() {
             Header("Random") { RandomAssetsFragment() },
             Header("People") { PeopleFragment() },
             Header("Recent") { RecentAssetsFragment() },
+            Header("Favorites") { FavoritesBrowseFragment() },
             Header("On this day") { OnThisDayBrowseFragment() }, // CAMBIADO AQUÍ
             Header("Seasonal") { SimilarTimeAssetsFragment() },
             Header("Timeline") { nl.giejay.android.tv.immich.assets.IntegratedTimelineFragment() },
