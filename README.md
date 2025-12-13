@@ -13,7 +13,21 @@ More info here: https://github.com/immich-app/immich
 This Android TV app will allow you to view those uploaded photos and videos. Current features
 include:
 
-| Features                                                                       | Status |
+### New in v3.20
+- **Favorites Section**: Browse all your favorite photos and videos in a dedicated section
+- **Real-time Sync**: Changes to favorites are instantly reflected across all screens
+- **3x3 Grid Layout**: Consistent viewing experience matching the Photos section
+- **Server-side Filtering**: Efficient loading of favorite items directly from Immich API
+
+### Existing Features
+- Browse photos and videos from your Immich server
+- Album management
+- People recognition
+- Timeline view
+
+And also:
+
+| Features in the Official Version (giejay)                                      | Status |
 |:-------------------------------------------------------------------------------|--------|
 | Sign in by phone (https://github.com/giejay/Immich-Android-TV-Authentication)  | Done   |
 | Sign in by entering API key                                                    | Done   |
