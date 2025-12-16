@@ -314,12 +314,21 @@ data object EXCLUDE_ASSETS_IN_ALBUM : StringSetPref(emptySet(), "Excluded albums
 }
 
 // Building the view
+data object SHOW_ONLY_VIDEOS : BooleanPref(false, "Show only videos", "When enabled, all sections will only show videos")
+
+data object VIEW_SETTINGS_CUSTOMIZER : ActionPref("Customize view", "Configure what to show in the different views", { _, navController ->
+//    navController.navigate(
+//        MetaDataCustomizerFragmentDirections.actionToMetadataFragment(MetaDataScreen.VIEWER)
+//    )
+    true
+})
+
 data object ViewPrefScreen : PrefScreen("View Settings", "view",
     listOf(
         PrefCategory("Ordering",
             listOf(
                 ALBUMS_SORTING,
-                PHOTOS_SORTING,         
+                PHOTOS_SORTING,
                 GRID_COLUMN_COUNT,
                 ALL_ASSETS_SORTING)
         ),
@@ -338,7 +347,9 @@ data object ViewPrefScreen : PrefScreen("View Settings", "view",
             RECENT_ASSETS_MONTHS_BACK,
             EXCLUDE_ASSETS_IN_ALBUM,
             SHOW_FILE_NAMES_GRID,
-            LOAD_BACKGROUND_IMAGE))
+            LOAD_BACKGROUND_IMAGE,
+            SHOW_ONLY_VIDEOS
+        ))
     )
 )
 

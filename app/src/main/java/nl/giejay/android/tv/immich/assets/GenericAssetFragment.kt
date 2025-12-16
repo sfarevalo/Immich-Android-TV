@@ -28,6 +28,10 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
         val filterKey = getFilterKey()
         currentSort = PreferenceManager.get(sortingKey)
         currentFilter = PreferenceManager.get(filterKey)
+        if (PreferenceManager.get(SHOW_ONLY_VIDEOS)) {
+            currentFilter = ContentType.VIDEO
+        }
+
         
         super.onCreate(savedInstanceState)
         
