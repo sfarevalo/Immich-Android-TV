@@ -13,6 +13,9 @@ More info here: https://github.com/immich-app/immich
 This Android TV app will allow you to view those uploaded photos and videos. Current features
 include:
 
+### New in v3.21
+- **Show Only VideosFavorites**: Your personal TikTok, "doomscrolling" place to just browse and view just videos in all the sections of Immich-Android-TV. Marvellous :)
+
 ### New in v3.20
 - **Favorites Section**: Browse all your favorite photos and videos in a dedicated section
 - **Real-time Sync**: Changes to favorites are instantly reflected across all screens
