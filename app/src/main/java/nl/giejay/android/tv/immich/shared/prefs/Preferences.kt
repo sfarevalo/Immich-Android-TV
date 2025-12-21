@@ -316,6 +316,10 @@ data object EXCLUDE_ASSETS_IN_ALBUM : StringSetPref(emptySet(), "Excluded albums
 // Building the view
 data object SHOW_ONLY_VIDEOS : BooleanPref(false, "Show only videos", "When enabled, all sections will only show videos")
 
+data object TIMELINE_THUMBNAILS_ENABLED : BooleanPref(true, "Timeline mode", "Enable or disable thumbnails in timeline") {
+    override fun key(): String = "timelineThumbnailsEnabled"
+}
+
 data object VIEW_SETTINGS_CUSTOMIZER : ActionPref("Customize view", "Configure what to show in the different views", { _, navController ->
 //    navController.navigate(
 //        MetaDataCustomizerFragmentDirections.actionToMetadataFragment(MetaDataScreen.VIEWER)
@@ -348,7 +352,8 @@ data object ViewPrefScreen : PrefScreen("View Settings", "view",
             EXCLUDE_ASSETS_IN_ALBUM,
             SHOW_FILE_NAMES_GRID,
             LOAD_BACKGROUND_IMAGE,
-            SHOW_ONLY_VIDEOS
+            SHOW_ONLY_VIDEOS,
+            TIMELINE_THUMBNAILS_ENABLED
         ))
     )
 )

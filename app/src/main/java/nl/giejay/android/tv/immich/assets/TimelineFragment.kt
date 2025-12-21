@@ -25,10 +25,7 @@ class TimelineFragment : GenericAssetFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Solo configuramos el botón de búsqueda
-        setOnSearchClickedListener {
-            findNavController().navigate(R.id.action_timeline_to_picker)
-        }
+        // No configuramos botón de búsqueda (lupa) para mantener la interfaz limpia
 
         // 1. CONFIGURACIÓN DEL BOTÓN DE BÚSQUEDA (Lupa)
         // Al pulsarlo, navegamos al Picker usando la acción del nav_graph.xml

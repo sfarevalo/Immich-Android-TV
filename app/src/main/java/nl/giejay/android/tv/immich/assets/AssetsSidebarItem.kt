@@ -7,9 +7,9 @@ import nl.giejay.android.tv.immich.api.model.Bucket
  */
 sealed class AssetsSidebarItem {
     /**
-     * Título para un año específico (ej: "2024"). No es interactivo.
+     * Título para un año específico (ej: "2024"). Es interactivo para desplegar meses.
      */
-    data class YearItem(val year: String) : AssetsSidebarItem()
+    data class YearItem(val year: String, val isExpanded: Boolean = false) : AssetsSidebarItem()
 
     /**
      * Fila para un mes (Bucket) específico. Es interactivo.

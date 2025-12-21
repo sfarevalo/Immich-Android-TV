@@ -49,6 +49,10 @@
         android:id="@+id/action_to_metadata_fragment"
         app:destination="@id/metaDataCustomizer" />
 
+    <action
+        android:id="@+id/action_global_to_photo_grid"
+        app:destination="@id/photoGridFragment" />
+
     <!--    <fragment-->
     <!--        android:id="@+id/playbackFragment"-->
     <!--        android:name="nl.giejay.android.tv.immich.playback.PlaybackFragment"-->
@@ -305,4 +309,15 @@
         android:name="nl.giejay.android.tv.immich.onthisday.OnThisDayBrowseFragment"
         android:label="OnThisDayBrowseFragment">
     </fragment>
+    <fragment
+        android:id="@+id/photoGridFragment"
+        android:name="nl.giejay.android.tv.immich.assets.TimelineFragment"
+        android:label="Photos">
+        <argument
+            android:name="timeBucket"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
+
 </navigation>

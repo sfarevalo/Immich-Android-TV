@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -53,12 +54,14 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
 
     private var sidebarItems: List<AssetsSidebarItem> = emptyList()
     private var currentAssetList: List<Asset> = emptyList()
+    private var returningFromGrid = false
 
     private lateinit var titleSelection: TextView
     private lateinit var assetCount: TextView
     private lateinit var loader: ProgressBar
     private lateinit var sidebarRecyclerView: RecyclerView
     private lateinit var gridAssets: VerticalGridView
+    private lateinit var textOnlyHeader: View
 
     override fun getMainFragmentAdapter(): BrowseSupportFragment.MainFragmentAdapter<IntegratedTimelineFragment> {
         return mMainFragmentAdapter
@@ -76,10 +79,28 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
         loader = view.findViewById(R.id.loading_indicator)
         sidebarRecyclerView = view.findViewById(R.id.sidebar_navigation_recycler_view)
         gridAssets = view.findViewById(R.id.grid_assets)
+        textOnlyHeader = view.findViewById(R.id.text_only_header)
 
         setupApiClient()
         setupGrids()
         
+        if (!PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)) {
+            titleSelection.visibility = View.GONE
+            assetCount.visibility = View.GONE
+            gridAssets.visibility = View.GONE
+            
+            // Rejilla oculta, sidebar ocupa todo el ancho
+            val gridParams = view.findViewById<View>(R.id.grid_container).layoutParams as LinearLayout.LayoutParams
+            gridParams.width = 0
+            gridParams.weight = 0f
+            view.findViewById<View>(R.id.grid_container).layoutParams = gridParams
+            
+            val params = sidebarRecyclerView.layoutParams as LinearLayout.LayoutParams
+            params.width = LinearLayout.LayoutParams.MATCH_PARENT
+            params.weight = 1f
+            sidebarRecyclerView.layoutParams = params
+        }
+
         viewModel.loadBuckets(apiClient)
         observeViewModel()
     }
@@ -103,6 +124,15 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
                     viewModel.buckets.collect { buckets ->
                         if (buckets.isNotEmpty()) {
                             updateSidebar(buckets)
+                            
+                            // Si acabamos de volver y tenemos una selección, restauramos el foco UNA VEZ
+                            if (returningFromGrid) {
+                                val selectedId = viewModel.selectedBucketId.value
+                                if (selectedId != null) {
+                                    scrollToAndFocusBucket(selectedId)
+                                }
+                                returningFromGrid = false
+                            }
                         }
                     }
                 }
@@ -139,17 +169,112 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
         }
         val sortedYears = bucketsByYear.keys.toList().sortedDescending()
         
+        val selectedId = viewModel.selectedBucketId.value
+        val selectedYear = try { selectedId?.substring(0, 4) } catch(e: Exception) { null }
         val newItems = mutableListOf<AssetsSidebarItem>()
+
         for (year in sortedYears) {
-            newItems.add(AssetsSidebarItem.YearItem(year))
-            bucketsByYear[year]?.let { months ->
-                months.forEach { newItems.add(AssetsSidebarItem.MonthItem(it)) }
+            val existingYearItem = sidebarItems.find { it is AssetsSidebarItem.YearItem && it.year == year } as? AssetsSidebarItem.YearItem
+            
+            // Si hay una selección activa (venimos de volver atrás o carga inicial), 
+            // forzamos la expansión de ese año y el colapso de los demás.
+            var isExpanded = if (selectedYear != null) {
+                year == selectedYear
+            } else {
+                existingYearItem?.isExpanded ?: false
+            }
+
+            newItems.add(AssetsSidebarItem.YearItem(year, isExpanded))
+            if (isExpanded) {
+                bucketsByYear[year]?.let { months ->
+                    months.forEach { 
+                        val isItemSelected = it.timeBucket == selectedId
+                        newItems.add(AssetsSidebarItem.MonthItem(it, isItemSelected)) 
+                    }
+                }
             }
         }
         
         sidebarItems = newItems
         sidebarAdapter.clear()
         sidebarAdapter.addAll(0, sidebarItems)
+    }
+
+    private fun updateSidebarWithExpansion(year: String, expanded: Boolean) {
+        val newItems = mutableListOf<AssetsSidebarItem>()
+        val buckets = viewModel.buckets.value
+        val bucketsByYear = buckets.groupBy { 
+            try { it.timeBucket.substring(0, 4) } catch(e: Exception) { "Unknown" } 
+        }
+        val sortedYears = bucketsByYear.keys.toList().sortedDescending()
+
+        for (y in sortedYears) {
+            // Solo permitimos un año expandido a la vez
+            val isThisYearExpanded = if (y == year) expanded else false
+            
+            newItems.add(AssetsSidebarItem.YearItem(y, isThisYearExpanded))
+            if (isThisYearExpanded) {
+                bucketsByYear[y]?.let { months ->
+                    months.forEach { newItems.add(AssetsSidebarItem.MonthItem(it)) }
+                }
+            }
+        }
+
+        sidebarItems = newItems
+        sidebarAdapter.clear()
+        sidebarAdapter.addAll(0, sidebarItems)
+
+        // Restaurar el foco en el año clicado y desplazarlo arriba
+        val newIndex = sidebarItems.indexOfFirst { it is AssetsSidebarItem.YearItem && it.year == year }
+        if (newIndex != -1) {
+            val itemToFocus = sidebarItems[newIndex]
+            sidebarRecyclerView.post {
+                // Desplazar el año arriba del todo
+                (sidebarRecyclerView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)
+                    ?.scrollToPositionWithOffset(newIndex, 0)
+                
+                sidebarRecyclerView.postDelayed({
+                    val viewHolder = sidebarRecyclerView.findViewHolderForAdapterPosition(newIndex)
+                    val container = viewHolder?.itemView?.findViewById<View>(R.id.year_container)
+                    container?.requestFocus()
+                    
+                    // Forzar actualización visual del resaltado
+                    if (viewHolder != null) {
+                        val presenter = sidebarAdapter.getPresenter(itemToFocus) as? SidebarYearPresenter
+                        presenter?.onBindViewHolder(Presenter.ViewHolder(viewHolder.itemView), itemToFocus)
+                    }
+                }, 100)
+            }
+        }
+    }
+
+    private fun scrollToAndFocusBucket(selectedId: String) {
+        val index = sidebarItems.indexOfFirst { it is AssetsSidebarItem.MonthItem && it.bucket.timeBucket == selectedId }
+        if (index != -1) {
+            sidebarRecyclerView.post {
+                (sidebarRecyclerView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)
+                    ?.scrollToPositionWithOffset(index, 200)
+                
+                sidebarRecyclerView.postDelayed({
+                    val vh = sidebarRecyclerView.findViewHolderForAdapterPosition(index)
+                    val container = vh?.itemView?.findViewById<View>(R.id.month_container)
+                    container?.requestFocus()
+                }, 300)
+            }
+        } else {
+            // Si el mes no está visible (ej: el año está plegado), enfocamos el año
+            val year = try { selectedId.substring(0, 4) } catch(e: Exception) { null }
+            val yearIndex = sidebarItems.indexOfFirst { it is AssetsSidebarItem.YearItem && it.year == year }
+            if (yearIndex != -1) {
+                sidebarRecyclerView.post {
+                    sidebarRecyclerView.scrollToPosition(yearIndex)
+                    sidebarRecyclerView.postDelayed({
+                        val vh = sidebarRecyclerView.findViewHolderForAdapterPosition(yearIndex)
+                        vh?.itemView?.findViewById<View>(R.id.year_container)?.requestFocus()
+                    }, 300)
+                }
+            }
+        }
     }
 
     private fun updateSidebarSelection(selectedId: String) {
@@ -364,34 +489,72 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
 
     inner class SidebarYearPresenter : Presenter() {
         override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_timeline_card_new, parent, false)
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_timeline_year, parent, false)
             view.isFocusable = false
+            view.isFocusableInTouchMode = false
             return ViewHolder(view)
         }
         override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
             val yearItem = item as AssetsSidebarItem.YearItem
-            viewHolder.view.findViewById<TextView>(R.id.year_title)?.text = yearItem.year
+            val view = viewHolder.view
+            val container = view.findViewById<View>(R.id.year_container)
+            val titleView = view.findViewById<TextView>(R.id.year_title)
+            val accentBar = view.findViewById<View>(R.id.accent_bar)
+            val context = view.context
+            
+            titleView?.text = yearItem.year
+            
+            container?.setOnClickListener {
+                updateSidebarWithExpansion(yearItem.year, !yearItem.isExpanded)
+            }
+
+            container?.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    container.setBackgroundColor(context.getColor(R.color.selected_month_background))
+                    titleView?.setTextColor(context.getColor(R.color.selected_text_color))
+                    accentBar?.visibility = View.VISIBLE
+                } else {
+                    container.setBackgroundColor(context.getColor(android.R.color.transparent))
+                    titleView?.setTextColor(context.getColor(android.R.color.white))
+                    accentBar?.visibility = View.INVISIBLE
+                }
+            }
+            
+            // Estado inicial
+            if (container?.hasFocus() == true) {
+                container.setBackgroundColor(context.getColor(R.color.selected_month_background))
+                titleView?.setTextColor(context.getColor(R.color.selected_text_color))
+                accentBar?.visibility = View.VISIBLE
+            } else {
+                container?.setBackgroundColor(context.getColor(android.R.color.transparent))
+                titleView?.setTextColor(context.getColor(android.R.color.white))
+                accentBar?.visibility = View.INVISIBLE
+            }
         }
-        override fun onUnbindViewHolder(viewHolder: ViewHolder) {}
+        override fun onUnbindViewHolder(viewHolder: ViewHolder) {
+            val container = viewHolder.view.findViewById<View>(R.id.year_container)
+            container?.setOnClickListener(null)
+            container?.setOnFocusChangeListener(null)
+        }
     }
 
     inner class SidebarMonthPresenter : Presenter() {
         override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
             val view = LayoutInflater.from(parent.context).inflate(R.layout.item_timeline_month, parent, false)
-            view.isFocusable = true
-            view.isFocusableInTouchMode = true
+            view.isFocusable = false
+            view.isFocusableInTouchMode = false
             return ViewHolder(view)
         }
         override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
             val monthItem = item as AssetsSidebarItem.MonthItem
             val view = viewHolder.view
 
-            view.setOnClickListener { 
-                viewModel.selectBucket(monthItem.bucket.timeBucket, apiClient)
-            }
+            view.setOnClickListener(null)
+            view.isFocusable = false
+            view.isFocusableInTouchMode = false
 
             view.setOnKeyListener { v, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if (PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED) && event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                     val grid = v.rootView.findViewById<VerticalGridView>(R.id.grid_assets)
                     if (assetAdapter.size() > 0) {
                         grid.requestFocus()
@@ -401,22 +564,35 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
                 false
             }
 
-            view.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus) {
-                    viewModel.selectBucket(monthItem.bucket.timeBucket, apiClient)
+            val container = view.findViewById<View>(R.id.month_container)
+            
+            container?.setOnClickListener {
+                viewModel.selectBucket(monthItem.bucket.timeBucket, apiClient)
+                if (!PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)) {
+                    val bundle = Bundle()
+                    bundle.putString("timeBucket", monthItem.bucket.timeBucket)
+                    returningFromGrid = true
+                    findNavController().navigate(R.id.action_global_to_photo_grid, bundle)
                 }
-                // Actualizamos visualmente usando la referencia local, sin esperar al Adapter
-                updateVisualState(view, true, hasFocus, monthItem.bucket)
+            }
+
+            container?.setOnFocusChangeListener { _, hasFocus ->
+                updateVisualState(view, monthItem.isSelected, hasFocus, monthItem.bucket)
             }
             
             // Bind inicial
-            updateVisualState(view, monthItem.isSelected, view.hasFocus(), monthItem.bucket)
+            updateVisualState(view, monthItem.isSelected, container?.hasFocus() == true, monthItem.bucket)
         }
         
         private fun updateVisualState(view: View, isSelected: Boolean, hasFocus: Boolean, bucket: Bucket) {
+            val container = view.findViewById<View>(R.id.month_container)
             val monthNameView = view.findViewById<TextView>(R.id.month_name)
             val countView = view.findViewById<TextView>(R.id.month_count)
+            val accentBar = view.findViewById<View>(R.id.accent_bar)
             val context = view.context
+
+            val isTextOnly = !PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)
+            val shouldHighlight = if (isTextOnly) hasFocus else (hasFocus || isSelected)
 
             val monthName = try {
                 val date = LocalDate.parse(bucket.timeBucket)
@@ -426,21 +602,24 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
             monthName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }?.let {
                 monthNameView.text = it
             }
-            countView.text = "${bucket.count}"
+            countView.text = "(${bucket.count})"
 
-            if (isSelected || hasFocus) {
-                view.setBackgroundColor(context.getColor(R.color.selected_month_background))
-                monthNameView.setTextColor(context.getColor(R.color.selected_text_color))
-                countView.setTextColor(context.getColor(R.color.selected_text_color))
+            if (shouldHighlight) {
+                container?.setBackgroundColor(context.getColor(R.color.selected_month_background))
+                monthNameView?.setTextColor(context.getColor(R.color.selected_text_color))
+                countView?.setTextColor(context.getColor(R.color.selected_text_color))
+                accentBar?.visibility = View.VISIBLE
             } else {
-                view.setBackgroundColor(context.getColor(android.R.color.transparent))
-                monthNameView.setTextColor(context.getColor(R.color.unselected_text_color))
-                countView.setTextColor(context.getColor(R.color.unselected_text_color))
+                container?.setBackgroundColor(context.getColor(android.R.color.transparent))
+                monthNameView?.setTextColor(context.getColor(R.color.unselected_text_color))
+                countView?.setTextColor(context.getColor(R.color.unselected_text_color))
+                accentBar?.visibility = View.INVISIBLE
             }
         }
         override fun onUnbindViewHolder(viewHolder: ViewHolder) {
-            viewHolder.view.setOnClickListener(null)
-            viewHolder.view.onFocusChangeListener = null
+            val container = viewHolder.view.findViewById<View>(R.id.month_container)
+            container?.setOnClickListener(null)
+            container?.onFocusChangeListener = null
             viewHolder.view.setOnKeyListener(null)
         }
     }
