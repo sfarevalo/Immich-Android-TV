@@ -13,6 +13,15 @@ More info here: https://github.com/immich-app/immich
 This Android TV app will allow you to view those uploaded photos and videos. Current features
 include:
 
+### New in v3.23 
+
+- **"Move to Trash" Support**: Added ability to move photos directly to the Immich trash using the remote's RED button (KEYCODE_PROG_RED, keycode 183).
+Note: This requires pre-mapping the button using an Android tool like KeyMapper. The media slider automatically transitions to the next image once we move one photo/video to the trashcan and refreshes metadata immediately after a deletion.
+
+### New in v3.22 
+
+- **Elegant Timeline & Smart Navigation**: This release brings a major visual overhaul to the Timeline (text-only mode) and significantly improves navigation fluidity, making the browsing experience smoother and more "cinematic" on your TV.
+
 ### New in v3.21
 - **Show Only VideosFavorites**: Your personal TikTok, "doomscrolling" place to just browse and view just videos in all the sections of Immich-Android-TV. Marvellous :)
 
