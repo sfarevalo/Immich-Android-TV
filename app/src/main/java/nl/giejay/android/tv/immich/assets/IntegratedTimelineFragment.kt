@@ -34,6 +34,7 @@ import nl.giejay.android.tv.immich.api.model.Asset
 import nl.giejay.android.tv.immich.shared.prefs.*
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
 import nl.giejay.android.tv.immich.shared.util.toSliderItems
+import nl.giejay.mediaslider.model.SliderItemViewHolder
 import timber.log.Timber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -61,7 +62,6 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
     private lateinit var loader: ProgressBar
     private lateinit var sidebarRecyclerView: RecyclerView
     private lateinit var gridAssets: VerticalGridView
-    private lateinit var textOnlyHeader: View
 
     override fun getMainFragmentAdapter(): BrowseSupportFragment.MainFragmentAdapter<IntegratedTimelineFragment> {
         return mMainFragmentAdapter
@@ -74,32 +74,35 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        Timber.tag("CRITICAL").e("EXECUTION CONFIRMED: IntegratedTimelineFragment Loaded")
+        Toast.makeText(requireContext(), "DEBUG: Timeline Loaded", Toast.LENGTH_SHORT).show()
+        
         titleSelection = view.findViewById(R.id.lbl_current_selection)
         assetCount = view.findViewById(R.id.lbl_asset_count)
         loader = view.findViewById(R.id.loading_indicator)
         sidebarRecyclerView = view.findViewById(R.id.sidebar_navigation_recycler_view)
         gridAssets = view.findViewById(R.id.grid_assets)
-        textOnlyHeader = view.findViewById(R.id.text_only_header)
 
         setupApiClient()
         setupGrids()
         
-        if (!PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)) {
-            titleSelection.visibility = View.GONE
-            assetCount.visibility = View.GONE
-            gridAssets.visibility = View.GONE
-            
-            // Rejilla oculta, sidebar ocupa todo el ancho
-            val gridParams = view.findViewById<View>(R.id.grid_container).layoutParams as LinearLayout.LayoutParams
-            gridParams.width = 0
-            gridParams.weight = 0f
-            view.findViewById<View>(R.id.grid_container).layoutParams = gridParams
-            
-            val params = sidebarRecyclerView.layoutParams as LinearLayout.LayoutParams
-            params.width = LinearLayout.LayoutParams.MATCH_PARENT
-            params.weight = 1f
-            sidebarRecyclerView.layoutParams = params
-        }
+        setupGrids()
+        
+        // Enforce text-only mode
+        titleSelection.visibility = View.GONE
+        assetCount.visibility = View.GONE
+        gridAssets.visibility = View.GONE
+        
+        // Rejilla oculta, sidebar ocupa todo el ancho
+        val gridParams = view.findViewById<View>(R.id.grid_container).layoutParams as LinearLayout.LayoutParams
+        gridParams.width = 0
+        gridParams.weight = 0f
+        view.findViewById<View>(R.id.grid_container).layoutParams = gridParams
+        
+        val params = sidebarRecyclerView.layoutParams as LinearLayout.LayoutParams
+        params.width = LinearLayout.LayoutParams.MATCH_PARENT
+        params.weight = 1f
+        sidebarRecyclerView.layoutParams = params
 
         viewModel.loadBuckets(apiClient)
         observeViewModel()
@@ -442,6 +445,7 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
     }
 
     private fun openPhotoSlider(card: Card) {
+        Timber.tag("CRITICAL").e("EXECUTION CONFIRMED: openPhotoSlider Called for card ${card.id}")
         val syncedAssets = currentAssetList.map { asset ->
             if (FavoriteCache.overrides.containsKey(asset.id)) {
                 asset.copy(isFavorite = FavoriteCache.overrides[asset.id]!!)
@@ -449,8 +453,71 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
                 asset
             }
         }
-        val sliderItems = syncedAssets.toSliderItems(keepOrder = true, mergePortrait = false)
-        val sliderStartIndex = sliderItems.indexOfFirst { it.ids().contains(card.id) }.let { if (it == -1) 0 else it }
+        val sliderItems: List<SliderItemViewHolder> = syncedAssets.toSliderItems(keepOrder = true, mergePortrait = false)
+        val sliderStartIndex = sliderItems.indexOfFirst { 
+            it.mainItem.id == card.id || it.secondaryItem?.id == card.id 
+        }.let { if (it == -1) 0 else it }
+
+        var loadPreviousCallback: (suspend () -> List<SliderItemViewHolder>)? = null
+
+        // IMPORTANTE: Definimos qué hacer al llegar al inicio (izquierda)
+        val currentBucketId = card.id.let { assetId ->
+            val bucketId = viewModel.selectedBucketId.value
+            val debugMsg = "DEBUG: Bucket ${bucketId} | Is Current? unknown"
+            Timber.tag("CRITICAL").e(debugMsg)
+            bucketId
+        }
+
+        if (currentBucketId != null) {
+            val buckets = viewModel.buckets.value
+            val currentIndex = buckets.indexOfFirst { it.timeBucket == currentBucketId }
+            
+            val debugMsg = "DEBUG: Bucket ${currentBucketId} | Is Current? ${currentIndex==0} | Index $currentIndex of ${buckets.size}"
+            Timber.tag("SLIDER").d(debugMsg)
+            // UNCONDITIONAL TOAST for debugging
+            Toast.makeText(requireContext(), debugMsg, Toast.LENGTH_LONG).show()
+
+            Timber.tag("SLIDER").d("Full Bucket List: ${buckets.joinToString { it.timeBucket }}")
+
+            // Si hay un bucket ANTES en la lista (index - 1), ese es el más reciente (Newer)
+            if (currentIndex > 0) {
+                 val newerBucket = buckets[currentIndex - 1]
+                 Timber.tag("SLIDER").d("Target Newer Bucket: ${newerBucket.timeBucket} (Index ${currentIndex - 1})")
+                 
+                 loadPreviousCallback = suspend {
+                     Timber.tag("SLIDER").d("Trigger loadPrevious for bucket ${newerBucket.timeBucket}")
+                     // Cargamos los assets del nuevo bucket
+                     val result = apiClient.getAssetsForBucket("", newerBucket.timeBucket, PhotosOrder.NEWEST_OLDEST)
+                     result.fold(
+                         { emptyList() }, // Error
+                         { newAssets -> 
+                             // Sincronizar favoritos
+                             val synced = newAssets.map { asset ->
+                                 if (FavoriteCache.overrides.containsKey(asset.id)) {
+                                     asset.copy(isFavorite = FavoriteCache.overrides[asset.id]!!)
+                                 } else asset
+                             }
+                             synced.toSliderItems(true, false)
+                         }
+                     )
+                 }
+            } else {
+                Timber.tag("SLIDER").d("No newer bucket found. Current Index: $currentIndex")
+                // DIAGNOSTIC TOAST
+                if (currentIndex == 0) {
+                     Toast.makeText(requireContext(), "DEBUG: Estás en el mes más reciente (Index 0)", Toast.LENGTH_LONG).show()
+                } else {
+                     Toast.makeText(requireContext(), "DEBUG: No se encontró mes anterior (Index $currentIndex)", Toast.LENGTH_LONG).show()
+                }
+            }
+        } else {
+             Timber.tag("SLIDER").d("CurrentBucketID is null")
+             Toast.makeText(requireContext(), "DEBUG: No se pudo identificar el mes actual", Toast.LENGTH_LONG).show()
+        }
+        
+        if (loadPreviousCallback != null) {
+             Toast.makeText(requireContext(), "Navegación continua habilitada", Toast.LENGTH_SHORT).show()
+        }
 
         val config = MediaSliderConfiguration(
             sliderStartIndex,
@@ -467,7 +534,8 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
             PreferenceManager.get(DEBUG_MODE),
             gradiantOverlay = false,
             PreferenceManager.get(SCREENSAVER_ANIMATE_ASSET_SLIDE),
-            PreferenceManager.getAllMetaData(MetaDataScreen.VIEWER)
+            PreferenceManager.getAllMetaData(MetaDataScreen.VIEWER),
+            loadPreviousCallback // Passed explicitly!
         )
 
         val bundle = Bundle()
@@ -553,27 +621,17 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
             view.isFocusable = false
             view.isFocusableInTouchMode = false
 
-            view.setOnKeyListener { v, keyCode, event ->
-                if (PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED) && event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    val grid = v.rootView.findViewById<VerticalGridView>(R.id.grid_assets)
-                    if (assetAdapter.size() > 0) {
-                        grid.requestFocus()
-                        return@setOnKeyListener true
-                    }
-                }
-                false
-            }
+            // Removed KeyListener that directed focus to grid when thumbnails were enabled
+            view.setOnKeyListener(null)
 
             val container = view.findViewById<View>(R.id.month_container)
             
             container?.setOnClickListener {
                 viewModel.selectBucket(monthItem.bucket.timeBucket, apiClient)
-                if (!PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)) {
-                    val bundle = Bundle()
-                    bundle.putString("timeBucket", monthItem.bucket.timeBucket)
-                    returningFromGrid = true
-                    findNavController().navigate(R.id.action_global_to_photo_grid, bundle)
-                }
+                val bundle = Bundle()
+                bundle.putString("timeBucket", monthItem.bucket.timeBucket)
+                returningFromGrid = true
+                findNavController().navigate(R.id.action_global_to_photo_grid, bundle)
             }
 
             container?.setOnFocusChangeListener { _, hasFocus ->
@@ -591,8 +649,8 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
             val accentBar = view.findViewById<View>(R.id.accent_bar)
             val context = view.context
 
-            val isTextOnly = !PreferenceManager.get(TIMELINE_THUMBNAILS_ENABLED)
-            val shouldHighlight = if (isTextOnly) hasFocus else (hasFocus || isSelected)
+            val isTextOnly = true
+            val shouldHighlight = hasFocus // In text-only mode, highlight follows focus
 
             val monthName = try {
                 val date = LocalDate.parse(bucket.timeBucket)
@@ -654,13 +712,29 @@ class IntegratedTimelineFragment : Fragment(), BrowseSupportFragment.MainFragmen
             val favIcon = view.findViewById<ImageView>(R.id.icon_favorite)
             favIcon.visibility = if (card.isFavorite) View.VISIBLE else View.GONE
 
-            // 3. Listener de Click
+            // 3. Listener de Click (Redundant backup, often ignored by Leanback/Grid)
             view.setOnClickListener {
+                Timber.tag("CRITICAL").e("EXECUTION CONFIRMED: Click Listener Fired")
                 openPhotoSlider(card)
             }
 
-            // 4. ANIMACIÓN DE FOCO (La clave para que se vea)
+            // 4. KEY LISTENER (Force DPAD_CENTER / ENTER)
+            view.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            Timber.tag("CRITICAL").e("EXECUTION CONFIRMED: KeyListener DPAD_CENTER/ENTER Fired")
+                            openPhotoSlider(card)
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+
+            // 5. ANIMACIÓN DE FOCO (La clave para que se vea)
             view.setOnFocusChangeListener { v, hasFocus ->
+                // ... (Existing animation logic)
                 if (hasFocus) {
                     // Zoom In (Crecer)
                     v.animate().scaleX(1.1f).scaleY(1.1f).duration = 150

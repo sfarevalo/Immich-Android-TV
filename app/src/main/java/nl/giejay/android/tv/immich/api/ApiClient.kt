@@ -27,6 +27,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import nl.giejay.android.tv.immich.api.model.BucketResponse
+import nl.giejay.android.tv.immich.api.model.DeleteAssetsRequest
 import nl.giejay.android.tv.immich.api.model.UpdateAssetRequest
 import timber.log.Timber
 import java.util.Calendar
@@ -78,6 +79,14 @@ class ApiClient(private val config: ApiClientConfig) {
                 id = assetId,
                 body = UpdateAssetRequest(isFavorite)
             )
+        }
+    }
+
+    suspend fun moveToTrash(assetId: String): Either<String, Unit> {
+        Timber.d("API: moveToTrash() called with assetId: $assetId")
+        return executeAPICall(204) {
+            Timber.d("API: Calling service.deleteAssets(assetId)")
+            service.deleteAssets(DeleteAssetsRequest(ids = listOf(assetId)))
         }
     }
     // ------------------------------------------------

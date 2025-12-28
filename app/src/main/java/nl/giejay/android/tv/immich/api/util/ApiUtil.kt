@@ -41,11 +41,19 @@ object ApiUtil {
 
     suspend fun <T> executeAPICall(expectedStatus: Int, handler: suspend () -> Response<T>): Either<String, T> {
         try {
+            Timber.d("APIUTIL: executeAPICall called")
             val res = handler()
+            Timber.d("APIUTIL: Response code: ${res.code()}, expected: $expectedStatus")
             return when (val code = res.code()) {
                 expectedStatus -> {
-                    return res.body()?.let { Either.Right(it) }
-                        ?: Either.Left("Did not receive a input from the server")
+                    val body = res.body()
+                    if (body != null) return Either.Right(body)
+
+                    return try {
+                        Either.Right(Unit as T)
+                    } catch (e: Exception) {
+                        Either.Left("Did not receive a input from the server")
+                    }
                 }
 
                 403 -> {
@@ -56,6 +64,7 @@ object ApiUtil {
                     }
                 }
                 else -> {
+                    Timber.e("APIUTIL: Invalid status code: $code, expected: $expectedStatus")
                     Either.Left("Invalid status code from API: $code, make sure you are using the latest Immich server release.")
                 }
             }

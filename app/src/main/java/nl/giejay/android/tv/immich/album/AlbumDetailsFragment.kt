@@ -62,7 +62,7 @@ class AlbumDetailsFragment : GenericAssetFragment() {
             }
             val combined = filteredItems + prevAssets
             allPagesLoaded = allPagesLoaded(it)
-            if (combined.size <= FETCH_COUNT && !allPagesLoaded) {
+            if (combined.size <= fetchCount && !allPagesLoaded) {
                 // immediately load next bucket
                 currentPage += 1
                 internalLoadData(combined)

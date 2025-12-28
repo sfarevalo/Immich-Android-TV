@@ -39,6 +39,9 @@ class MainActivity : FragmentActivity() {
     private lateinit var navGraph: NavGraph
     private lateinit var navController: NavController
 
+    // KEYCODE_PROG_RED (keycode 183) for delete photo
+    private val DELETE_BUTTON_KEYCODE = 183
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -65,6 +68,13 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Manejar botón PROG_RED (keycode 183) para borrar fotos
+        if (keyCode == DELETE_BUTTON_KEYCODE && event?.action == KeyEvent.ACTION_DOWN && event?.repeatCount == 0) {
+            Timber.d("MAIN: PROG_RED button pressed - keyCode: $keyCode")
+            keyEventsModel.postDeleteEvent()
+            return true // Consumir el evento
+        }
+
         keyEventsModel.postKeyEvent(event)
         return super.onKeyDown(keyCode, event)
     }

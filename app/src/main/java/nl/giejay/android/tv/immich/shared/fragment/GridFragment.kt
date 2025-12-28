@@ -180,10 +180,23 @@ open class GridFragment(val hideProgressBar: Boolean = false) : BrandedSupportFr
     /**
      * Sets the selected item position.
      */
+    /**
+     * Sets the selected item position.
+     */
     private fun setSelectedPosition(position: Int) {
         mSelectedPosition = position
         if (mGridViewHolder != null && mGridViewHolder!!.gridView.adapter != null) {
             mGridViewHolder!!.gridView.setSelectedPositionSmooth(position)
+        }
+    }
+
+    /**
+     * Instantly jumps to the selected item position without animation.
+     */
+    protected fun jumpToPosition(position: Int) {
+        mSelectedPosition = position
+        if (mGridViewHolder != null && mGridViewHolder!!.gridView.adapter != null) {
+            mGridViewHolder!!.gridView.selectedPosition = position
         }
     }
 

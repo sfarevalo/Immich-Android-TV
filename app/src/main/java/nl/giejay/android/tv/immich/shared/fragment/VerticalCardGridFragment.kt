@@ -158,7 +158,7 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
                 { itRight ->
                     val assets = filterItems(itRight)
                     setupViews(assets)
-                    if (assets.size < FETCH_COUNT) {
+                    if (assets.size < fetchCount) {
                         // immediately load next assets
                         currentLoadingJob = fetchNextItems()
                     }
@@ -220,7 +220,7 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
                 Timber.i("Loading next items, ${items.size}")
                 val filteredItems = filterItems(items)
                 allPagesLoaded = allPagesLoaded(items)
-                if (filteredItems.size < FETCH_COUNT) {
+                if (filteredItems.size < fetchCount) {
                     return filteredItems + loadMoreAssets()
                 } else  {
                     return filteredItems
@@ -346,7 +346,7 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
     }
 
     private fun addAssetsPaginated() {
-        val assetsPaginated = assetsStillToRender.take(FETCH_COUNT)
+        val assetsPaginated = assetsStillToRender.take(fetchCount)
         val cards = assetsPaginated.map { createCard(it) }
         adapter.addAll(adapter.size(), cards)
         assetsStillToRender.removeAll(assetsPaginated)
@@ -398,7 +398,9 @@ abstract class VerticalCardGridFragment<ITEM> : GridFragment() {
     companion object {
         const val COLUMNS = 4
         private const val FETCH_NEXT_THRESHOLD = COLUMNS * 6
-        const val FETCH_COUNT = 50
-        const val FETCH_PAGE_COUNT = FETCH_COUNT
+        const val DEFAULT_FETCH_COUNT = 50
+        const val FETCH_PAGE_COUNT = DEFAULT_FETCH_COUNT
     }
+    
+    protected open val fetchCount: Int = DEFAULT_FETCH_COUNT
 }

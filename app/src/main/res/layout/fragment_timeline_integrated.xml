@@ -11,19 +11,6 @@
     android:paddingStart="150dp"
     android:paddingTop="32dp">
 
-    <TextView
-        android:id="@+id/text_only_header"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Timeline"
-        android:textSize="64sp"
-        android:textStyle="bold"
-        android:textColor="@android:color/white"
-        android:visibility="gone"
-        tools:visibility="gone"
-        android:layout_marginBottom="32dp"
-        android:gravity="end"
-        android:paddingEnd="48dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -32,7 +19,7 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/sidebar_navigation_recycler_view"
-            android:layout_width="400dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:paddingTop="120dp"
             android:paddingBottom="32dp"
@@ -42,12 +29,14 @@
             tools:itemCount="10"
             tools:listitem="@layout/item_timeline_month"/>
 
+        <!-- Container hidden permanently as thumbnail mode is removed -->
         <LinearLayout
             android:id="@+id/grid_container"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_weight="0"
             android:orientation="vertical"
+            android:visibility="gone"
             android:paddingStart="32dp"
             android:paddingEnd="32dp">
 

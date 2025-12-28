@@ -54,18 +54,33 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
         setFragmentResultListener("asset_favorite_changed") { _, bundle ->
             val assetId = bundle.getString("assetId")
             val isFavorite = bundle.getBoolean("isFavorite")
-            
+
             if (assetId != null) {
                 Timber.d("GenericAsset: Evento recibido $assetId -> $isFavorite")
-                
+
                 // 1. Guardar en cache global (persiste entre destrucciones)
                 FavoriteCache.overrides[assetId] = isFavorite
-                
+
                 // 2. Actualizar vista inmediatamente si está disponible
                 updateCardInAdapter(assetId, isFavorite)
-                
+
                 // 3. Actualizar memoria (lista de assets)
                 updateAssetInMemory(assetId, isFavorite)
+            }
+        }
+
+        // Listener para borrado de assets (cuando se borra desde el visor)
+        setFragmentResultListener("asset_deleted") { _, bundle ->
+            val assetId = bundle.getString("assetId")
+
+            if (assetId != null) {
+                Timber.d("GenericAsset: Asset borrado $assetId")
+
+                // 1. Eliminar de la vista
+                removeCardFromAdapter(assetId)
+
+                // 2. Eliminar de memoria
+                removeAssetFromMemory(assetId)
             }
         }
     }
@@ -110,6 +125,39 @@ abstract class GenericAssetFragment : VerticalCardGridFragment<Asset>() {
             val updatedAsset = assets[index].copy(isFavorite = isFavorite)
             (assets as MutableList)[index] = updatedAsset
             Timber.d("GenericAsset: Asset actualizado en memoria en índice $index")
+        }
+    }
+
+    /**
+     * Elimina un Card del adaptador visual
+     */
+    private fun removeCardFromAdapter(assetId: String) {
+        if (adapter == null || adapter.size() == 0) {
+            Timber.d("GenericAsset: Adaptador no disponible para eliminar")
+            return
+        }
+
+        val count = adapter.size()
+        for (i in 0 until count) {
+            val item = adapter.get(i)
+            if (item is Card && item.id == assetId) {
+                (adapter as? ArrayObjectAdapter)?.remove(i)
+                Timber.d("GenericAsset: Card eliminado del adaptador en posición $i")
+                return
+            }
+        }
+
+        Timber.d("GenericAsset: Card $assetId no encontrado en adaptador")
+    }
+
+    /**
+     * Elimina un Asset de la memoria (lista de assets)
+     */
+    private fun removeAssetFromMemory(assetId: String) {
+        val index = assets.indexOfFirst { it.id == assetId }
+        if (index != -1 && assets is MutableList) {
+            (assets as MutableList).removeAt(index)
+            Timber.d("GenericAsset: Asset eliminado de memoria en índice $index")
         }
     }
 

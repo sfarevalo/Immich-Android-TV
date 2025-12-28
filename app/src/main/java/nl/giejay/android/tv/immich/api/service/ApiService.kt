@@ -9,11 +9,13 @@ import nl.giejay.android.tv.immich.api.model.BucketResponse
 import nl.giejay.android.tv.immich.api.model.PeopleResponse
 import nl.giejay.android.tv.immich.api.model.SearchRequest
 import nl.giejay.android.tv.immich.api.model.SearchResponse
+import nl.giejay.android.tv.immich.api.model.DeleteAssetsRequest
 import nl.giejay.android.tv.immich.api.model.UpdateAssetRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -59,7 +61,10 @@ interface ApiService {
 
     @retrofit2.http.PUT("assets/{id}")
         suspend fun updateAsset(
-            @Path("id") id: String, 
+            @Path("id") id: String,
             @Body body: UpdateAssetRequest
         ): Response<Asset>
+
+    @retrofit2.http.HTTP(method = "DELETE", path = "assets", hasBody = true)
+    suspend fun deleteAssets(@Body body: DeleteAssetsRequest): Response<Unit>
 }

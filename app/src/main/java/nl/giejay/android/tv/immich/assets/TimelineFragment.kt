@@ -21,6 +21,27 @@ import nl.giejay.android.tv.immich.shared.prefs.PhotosOrder
 class TimelineFragment : GenericAssetFragment() {
 
     private var currentBucket: Bucket? = null
+    
+    // Si estamos viendo un bucket específico (Timeline), cargamos todo de golpe para poder ir al final.
+    // Si es la vista general, usamos paginación normal.
+    override val fetchCount: Int
+        get() = if (currentBucket != null) Int.MAX_VALUE else super.fetchCount
+
+    override fun setData(assets: List<Asset>) {
+        if (currentBucket != null) {
+            // Como cargamos todo el bucket de una vez (la API no pagina buckets por ahora),
+            // marcamos que ya no hay más páginas para evitar bucles infinitos al ser fetchCount MAX_VALUE
+            allPagesLoaded = true 
+        }
+        super.setData(assets)
+        // Si estamos en modo bucket (Timeline mensual), hacemos scroll al final (foto más antigua)
+        if (currentBucket != null && adapter.size() > 0) {
+            // Usamos jumpToPosition para ir al final instantáneamente sin animación de scroll
+            view?.post {
+                jumpToPosition(adapter.size() - 1)
+            }
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

@@ -6,7 +6,11 @@ import android.view.View
 import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.setFragmentResult
+import androidx.fragment.app.setFragmentResultListener
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +23,7 @@ import nl.giejay.android.tv.immich.shared.prefs.DEBUG_MODE
 import nl.giejay.android.tv.immich.shared.prefs.DISABLE_SSL_VERIFICATION
 import nl.giejay.android.tv.immich.shared.prefs.HOST_NAME
 import nl.giejay.android.tv.immich.shared.prefs.PreferenceManager
+import nl.giejay.android.tv.immich.shared.viewmodel.KeyEventsViewModel
 import nl.giejay.mediaslider.config.MediaSliderConfiguration
 import nl.giejay.mediaslider.view.MediaSliderFragment
 import nl.giejay.mediaslider.view.MediaSliderView
@@ -29,6 +34,7 @@ class ImmichMediaSlider : MediaSliderFragment() {
 
     private lateinit var apiClient: ApiClient
     private lateinit var config: MediaSliderConfiguration
+    private lateinit var keyEvents: KeyEventsViewModel
 
     @SuppressLint("UnsafeOptInUsageError")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -50,6 +56,8 @@ class ImmichMediaSlider : MediaSliderFragment() {
         val bundle = ImmichMediaSliderArgs.fromBundle(requireArguments())
         this.config = bundle.config
 
+        keyEvents = ViewModelProvider(requireActivity())[KeyEventsViewModel::class.java]
+
         if (config.items.isEmpty()) {
             Toast.makeText(requireContext(), "No items to play", Toast.LENGTH_SHORT).show()
             findNavController().popBackStack()
@@ -57,6 +65,18 @@ class ImmichMediaSlider : MediaSliderFragment() {
         }
 
         setupApiClient()
+
+        // Listen for delete button (PROG_RED) normal press events
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                keyEvents.deleteEventTrigger.collect { deleteTrigger ->
+                    // Move current item to trash directly when delete button is pressed
+                    if (deleteTrigger > 0) {
+                        deleteCurrentItem()
+                    }
+                }
+            }
+        }
 
         setDefaultExoFactory(
             DefaultHttpDataSource.Factory()
@@ -164,6 +184,69 @@ class ImmichMediaSlider : MediaSliderFragment() {
                         ))
                         
                         Timber.d("VISOR: Evento enviado")
+                    }
+                }
+            )
+        }
+    }
+
+    private fun deleteCurrentItem() {
+        Timber.d("VISOR: deleteCurrentItem() called")
+        val view = this@ImmichMediaSlider.view
+        if (view !is MediaSliderView) {
+            Timber.e("VISOR: View is not MediaSliderView!")
+            return
+        }
+
+        val currentPosition = view.getCurrentIndex()
+        Timber.d("VISOR: Current position: $currentPosition, total items: ${config.items.size}")
+
+        if (currentPosition in config.items.indices) {
+            val currentItemHolder = config.items[currentPosition]
+            val assetId = currentItemHolder.ids().firstOrNull()
+            Timber.d("VISOR: Asset ID: $assetId")
+
+            if (assetId != null) {
+                moveToTrash(assetId, currentPosition)
+            } else {
+                Timber.e("VISOR: Asset ID is null!")
+            }
+        } else {
+            Timber.e("VISOR: Current position not in config.items.indices!")
+        }
+    }
+
+    private fun moveToTrash(assetId: String, position: Int) {
+        Toast.makeText(requireContext(), "🗑️ Enviada a la papelera", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            apiClient.moveToTrash(assetId).fold(
+                { error ->
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(requireContext(), "Error: $error", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                { _ ->
+                    withContext(Dispatchers.Main) {
+                        // Remove from config items by creating a new list without deleted item
+                        config.items = config.items.filterIndexed { index, _ -> index != position }
+
+                        // If there are still items, reload slider
+                        if (config.items.isNotEmpty()) {
+                            view?.let { currentView ->
+                                if (currentView is MediaSliderView) {
+                                    currentView.post {
+                                        currentView.setItems(config.items)
+                                    }
+                                }
+                            }
+                        } else {
+                            // No more items, go back
+                            findNavController().popBackStack()
+                        }
+
+                        // Send fragment result to update other views
+                        setFragmentResult("asset_deleted", bundleOf("assetId" to assetId))
                     }
                 }
             )
